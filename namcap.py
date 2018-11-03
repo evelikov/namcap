@@ -28,6 +28,10 @@ import Namcap.depends
 import Namcap.tags
 import Namcap.version
 
+from time import gmtime, strftime
+def gettime():
+	return strftime("%Y-%m-%d %H:%M:%S", gmtime()) + " : "
+
 # Functions
 def get_modules():
 	"""Return all possible modules (rules)"""
@@ -85,10 +89,12 @@ def process_realpackage(package, modules):
 		print("Error: %s is empty or is not a valid package" % package)
 		return 1
 
+	print(gettime(), "start")
 	pkginfo = Namcap.package.load_from_tarball(package)
 	# Loop through each one, load them apply if possible
 	for i in modules:
 		rule = get_modules()[i]()
+		print(gettime(), "rule - ", rule.name)
 
 		if isinstance(rule, Namcap.ruleclass.PkgInfoRule):
 			rule.analyze(pkginfo, None)
