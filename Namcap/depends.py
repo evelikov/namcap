@@ -31,31 +31,6 @@ implicit_provides = {
 	'java-environment': ['java-runtime'],
 }
 
-def single_covered(depend):
-	"Returns full coverage tree of one package, with loops broken"
-	covered = set()
-	todo = set([depend])
-	while todo:
-		i = todo.pop()
-		covered.add(i)
-		pac = package.load_from_db(i)
-		if pac is None:
-			continue
-		todo |= set(pac["depends"]) - covered
-
-	return covered - set([depend])
-
-def getcovered(dependlist):
-	"""
-	Returns full coverage tree set, without packages
-	from self-loops (iterable of package names)
-	"""
-
-	covered = set()
-	for d in dependlist:
-		covered |= single_covered(d)
-	return covered
-
 def getcustom(pkginfo):
 	custom_name = {'^mingw-': ['mingw-w64-crt'],}
 	custom_depend = set()
@@ -83,47 +58,45 @@ def analyze_depends(pkginfo):
 
 	# compute needed dependencies + recursive
 	dependlist = set(pkginfo.detected_deps.keys())
-	indirectdependlist = getcovered(dependlist)
+	provideslist = getprovides(dependlist)
+	# FIXME part of actual or pkg deps?
 	customlist = getcustom(pkginfo)
-	for i in indirectdependlist:
+	for i in dependlist:
 		infos.append(("dependency-covered-by-link-dependence %s", i))
-	needed_depend = dependlist | indirectdependlist | customlist
-	# the minimal set of needed dependencies
-	smartdepend = set(dependlist) - indirectdependlist
+	needed_depend = dependlist | customlist
 
 	# Find all the covered dependencies from the PKGBUILD
 	pkginfo.setdefault("depends", [])
+	# FIXME pkginfo should not have dups - add a test
 	explicitdepend = set(pkginfo["depends"])
-	implicitdepend = getcovered(explicitdepend)
-	pkgbuild_depend = explicitdepend | implicitdepend
+	# Get the provides so we can reference them later
+	explicitprovides = getprovides(explicitdepend)
 
 	# Include the optdepends from the PKGBUILD
 	pkginfo.setdefault("optdepends", [])
 	optdepend = set(pkginfo["optdepends"])
-	optdepend |= getcovered(optdepend)
-
-	# Get the provides so we can reference them later
-	# smartprovides : depend => (packages provided by depend)
-	smartprovides = getprovides(smartdepend | explicitdepend)
 
 	# The set of all provides for detected dependencies
 	allprovides = set()
-	for plist in smartprovides.values():
+	for plist in provideslist.values():
 		allprovides |= plist
 
 	# Do the actual message outputting stuff
-	for i in smartdepend:
+	for i in dependlist:
 		# if the needed package is itself:
 		if i == pkginfo["name"]:
 			continue
-		# if the dependency is satisfied
-		if i in pkgbuild_depend:
+		# FIXME: ignore glibc for now, far too many packages are broken
+		if i == "glibc":
 			continue
-		# if the dependency is pulled as a provider for some explicit dep
-		if smartprovides[i] & pkgbuild_depend:
+		# the dependency is satisfied by a depends
+		if i in explicitdepend:
 			continue
 		# the dependency is satisfied by a provides
-		if i in allprovides:
+		if i in explicitprovides:
+			continue
+		# the package provides the required dependency
+		if i in provideslist and (provideslist[i] & explicitdepend): # FIXME exp provide as well?
 			continue
 		# compute dependency reason
 		reasons = pkginfo.detected_deps[i]
@@ -134,28 +107,29 @@ def analyze_depends(pkginfo):
 			warnings.append(("dependency-detected-but-optional %s (%s)", (i, reason)))
 			continue
 		# maybe, it is pulled as a provider for an optdepend
-		if smartprovides[i] & optdepend:
+		if provideslist[i] & optdepend:
 			warnings.append(("dependency-detected-but-optional %s (%s)", (i, reason)))
 			continue
 		# now i'm pretty sure i didn't find it.
 		errors.append(("dependency-detected-not-included %s (%s)", (i, reason)))
 
-	for i in pkginfo["depends"]:
-		# multilib packages usually depend on their regular counterparts
-		if pkginfo["name"].startswith('lib32-') and i == pkginfo["name"].partition('-')[2]:
-			continue
-		# the package provides an important dependency
-		if i in smartprovides and (smartprovides[i] & smartdepend):
-			continue
-		# a needed dependency is superfluous it is implicitly satisfied
-		if i in implicitdepend and (i in smartdepend or i in indirectdependlist):
-			warnings.append(("dependency-already-satisfied %s", i))
+	for i in explicitdepend:
+		# FIXME:
+		# - add mandatory dependencies, or
+		# - add implicit dep within pacman/makepkg
+		# multilib packages must depend on their regular counterparts
+		if pkginfo["name"].startswith('lib32-'):
+			if i == pkginfo["name"].partition('-')[2]:
+				continue
+			else:
+				errors.append(("multilib-dependency-detected-not-included %s", i))
+				continue
 		# a dependency is unneeded if:
 		#   it is not in the depends as we see them
 		#   it does not pull some needed dependency which provides it
-		elif i not in needed_depend and i not in allprovides:
+		if i not in needed_depend and i not in allprovides:
 			warnings.append(("dependency-not-needed %s", i))
-	infos.append(("depends-by-namcap-sight depends=(%s)", ' '.join(smartdepend) ))
+	infos.append(("depends-by-namcap-sight depends=(%s)", ' '.join(dependlist) ))
 
 	return errors, warnings, infos
 
