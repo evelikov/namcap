@@ -58,7 +58,9 @@ def analyze_depends(pkginfo):
 
 	# compute needed dependencies + recursive
 	dependlist = set(pkginfo.detected_deps.keys())
+	print(" deps		", dependlist)
 	provideslist = getprovides(dependlist)
+	print(" prov		", provideslist)
 	# FIXME part of actual or pkg deps?
 	customlist = getcustom(pkginfo)
 	for i in dependlist:
@@ -69,8 +71,10 @@ def analyze_depends(pkginfo):
 	pkginfo.setdefault("depends", [])
 	# FIXME pkginfo should not have dups - add a test
 	explicitdepend = set(pkginfo["depends"])
+	print("	exp dep		", explicitdepend)
 	# Get the provides so we can reference them later
 	explicitprovides = getprovides(explicitdepend)
+	print(" exp prov	", explicitprovides)
 
 	# Include the optdepends from the PKGBUILD
 	pkginfo.setdefault("optdepends", [])
@@ -80,6 +84,7 @@ def analyze_depends(pkginfo):
 	allprovides = set()
 	for plist in provideslist.values():
 		allprovides |= plist
+	print("	all prov	", allprovides)
 
 	# Do the actual message outputting stuff
 	for i in dependlist:
