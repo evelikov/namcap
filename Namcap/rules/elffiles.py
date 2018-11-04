@@ -87,9 +87,8 @@ class ELFTextRelocationRule(TarballRule):
 			for section in elffile.iter_sections():
 				if not isinstance(section, DynamicSection):
 					continue
-				for tag in section.iter_tags():
-					if tag.entry.d_tag == 'DT_TEXTREL':
-						files_with_textrel.append(entry.name)
+				for tag in section.iter_tags('DT_TEXTREL'):
+					files_with_textrel.append(entry.name)
 
 		if files_with_textrel:
 			self.warnings = [("elffile-with-textrel %s", i)
@@ -218,7 +217,7 @@ class NoPIERule(TarballRule):
 		for section in elffile.iter_sections():
 			if not isinstance(section, DynamicSection):
 				continue
-			if any(tag.entry.d_tag == 'DT_DEBUG' for tag in section.iter_tags()):
+			for tag in section.iter_tags('DT_DEBUG'):
 				return True
 		return False
 

@@ -52,10 +52,8 @@ def scanlibs(fileobj, filename, custom_libs):
 	for section in elffile.iter_sections():
 		if not isinstance(section, DynamicSection):
 			continue
-		for tag in section.iter_tags():
+		for tag in section.iter_tags('DT_NEEDED'):
 			# DT_NEEDED means shared library
-			if tag.entry.d_tag != 'DT_NEEDED':
-				continue
 			bitsize = elffile.elfclass
 			architecture = {32:'i686', 64:'x86-64'}[bitsize]
 			libname = tag.needed
