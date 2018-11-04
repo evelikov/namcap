@@ -23,16 +23,23 @@ from Namcap.ruleclass import *
 from elftools.elf.elffile import ELFFile
 from elftools.elf.dynamic import DynamicSection
 
+from time import gmtime, strftime
+def gettime():
+    return strftime("%Y-%m-%d %H:%M:%S", gmtime()) + " : "
+
 allowed = ['/usr/lib', '/usr/lib32', '/lib', '$ORIGIN', '${ORIGIN}']
 allowed_toplevels = [s + '/' for s in allowed]
 warn = ['/usr/local/lib']
 
 def get_rpaths(fileobj):
+	print(gettime(), "get_rpath")
 	elffile = ELFFile(fileobj)
 	for section in elffile.iter_sections():
+		print(gettime(), "section - ", section.name)
 		if not isinstance(section, DynamicSection):
 			continue
 		for tag in section.iter_tags('DT_RPATH'):
+			print(gettime(), "tag - ", tag)
 			rpaths = tag.rpath
 			rpaths = rpaths.split(':')
 			for path in rpaths:
@@ -42,6 +49,9 @@ class package(TarballRule):
 	name = "rpath"
 	description = "Verifies correct and secure RPATH for files."
 	def analyze(self, pkginfo, tar):
+		print("inside")
+		gettime()
+
 		for entry in tar:
 			if not entry.isfile():
 				continue

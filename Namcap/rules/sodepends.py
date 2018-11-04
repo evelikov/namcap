@@ -33,6 +33,10 @@ from Namcap.rules.rpath import get_rpaths
 from elftools.elf.elffile import ELFFile
 from elftools.elf.dynamic import DynamicSection
 
+from time import gmtime, strftime
+def gettime():
+    return strftime("%Y-%m-%d %H:%M:%S", gmtime()) + " : "
+
 libcache = {'i686': {}, 'x86-64': {}}
 
 def scanlibs(fileobj, filename, custom_libs):
@@ -137,7 +141,9 @@ class SharedLibsRule(TarballRule):
 		os.environ['LC_ALL'] = 'C'
 		pkg_so_files = ['/' + n for n in tar.getnames() if '.so' in n]
 
+		print("has # files", len(tar.getnames()))
 		for entry in tar:
+			print(gettime(), "tar entry - ", entry.name)
 			if not entry.isfile():
 				continue
 			f = tar.extractfile(entry)
@@ -146,11 +152,14 @@ class SharedLibsRule(TarballRule):
 			if is_elf(f):
 				rpaths = list(get_rpaths(f))
 				f.seek(0)
+				print(gettime(), "rpaths - ", rpaths)
 				for n in pkg_so_files:
 					if any(n.startswith(rp) for rp in rpaths):
 						rpath_files[os.path.basename(n)] = n
 			liblist.update(scanlibs(f, entry.name, rpath_files))
 			f.close()
+
+		print(gettime(), "DONE tar entries")
 
 		# Ldd all the files and find all the link and script dependencies
 		dependlist, orphans = finddepends(liblist)
@@ -158,6 +167,8 @@ class SharedLibsRule(TarballRule):
 		# Handle "no package associated" errors
 		self.warnings.extend([("library-no-package-associated %s", i)
 			for i in orphans])
+
+		print(gettime(), "link level deps")
 
 		# Print link-level deps
 		for pkg, libraries in dependlist.items():
@@ -170,6 +181,8 @@ class SharedLibsRule(TarballRule):
 					(str(files), str(list(needing)))
 					))
 				self.infos.append(("link-level-dependence %s in %s", (pkg, str(files))))
+
+		print(gettime(), "link level deps 2")
 
 		# Check for packages in testing
 		for i in dependlist.keys():
