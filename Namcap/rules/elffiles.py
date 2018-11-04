@@ -116,10 +116,7 @@ class ELFExecStackRule(TarballRule):
 			if not is_elf(fp):
 				continue
 			elffile = ELFFile(fp)
-			for segment in elffile.iter_segments():
-				if segment['p_type'] != 'PT_GNU_STACK':
-					continue
-
+			for segment in elffile.iter_segments('PT_GNU_STACK'):
 				mode = segment['p_flags']
 				if mode & 1:
 					exec_stacks.append(entry.name)
@@ -161,7 +158,7 @@ class ELFGnuRelroRule(TarballRule):
 			if not is_elf(fp):
 				continue
 			elffile = ELFFile(fp)
-			if any(seg['p_type'] == 'PT_GNU_RELRO' for seg in elffile.iter_segments()):
+			for segment in elffile.iter_segments('PT_GNU_RELRO'):
 				if self.has_bind_now(elffile):
 					continue
 
